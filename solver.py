@@ -14,8 +14,7 @@ def solveSudoku(grid, encoderFunc):
     :param grid: Sudoku grid of size N x N
     :param encoderFunc: Encoder function
     """
-
-    timeoutBenchmark = 300
+    timeoutBenchmark = 5
 
     N = len(grid)
     maxVar = N ** 3
