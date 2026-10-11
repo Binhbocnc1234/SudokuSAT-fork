@@ -1,8 +1,40 @@
+import csv
+import os
+
 from solver import solveSudoku
 from core.generateSudokuProblem import generate_random_sudoku as gen
 from core.sudokuBuilder import getAvailableEncoders, getEncoderByID
 
 GRID_SAMPLES = {9, 16, 25, 36}
+CSV_FILENAME = "benchmark_result.csv"
+
+def exportResult(results, filename=CSV_FILENAME):
+    fileExists = os.path.isfile(filename)
+
+    headers = [
+        "Grid Size", "Encoder", "Total Variables", "Auxiliary Variables", "Clauses", 
+        "Status", "Avg Encoding Time (ms)", "Avg Solving Time (ms)", "Avg Total Time (ms)"
+    ]
+
+    with open(filename, mode="a", newline="", encoding="utf-8") as csvFile:
+        writer = csv.DictWriter(csvFile, fieldnames=headers)
+    
+        if not fileExists: writer.writeheader()
+
+        for res in results:
+            writer.writerow({
+                "Grid Size": res.get("gridSize"),
+                "Encoder": res.get("encoder"),
+                "Total Variables": res.get("totalVar"),
+                "Auxiliary Variables": res.get("auxVar"),
+                "Clauses": res.get("numClauses"),
+                "Status": res.get("status"),
+                "Avg Encoding Time (ms)": f"{res.get('avgEncodingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
+                "Avg Solving Time (ms)": f"{res.get('avgSolvingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
+                "Avg Total Time (ms)": f"{res.get('avgTotalTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A"
+            })
+
+    print(f"Results successfully exported to '{filename}'")
 
 def simulation(encoderFunc, encoderName, gridSize, iterations):
     print(f"\n[+] Running simulation {iterations} times | Encoder: {encoderName}")
@@ -127,9 +159,9 @@ if __name__ == "__main__":
         print(f" - Encoder            : {res['encoder']}")
         print(f"   + Variable amount  : {res['totalVar']} (Aux: {res['auxVar']})")
         print(f"   + Clause amount    : {res['numClauses']}")
-
+        
         if res.get("status") == "TIMEOUT":
-            print(f"   + Status: TIMEOUT (Exceeded 300 seconds.)")
+            print(f"   + Status           : TIMEOUT")
 
         else:
             print(f"   + Avg encoding time: {res['avgEncodingTime'] * 1000:.4f} ms")
@@ -137,3 +169,7 @@ if __name__ == "__main__":
             print(f"   + Avg total time   : {res['avgTotalTime'] * 1000:.4f} ms")
 
         print("-" * 50)
+
+    # --- EXPORT ---
+    print("EXPORTING RESULT TO CSV...")
+    exportResult(results)
