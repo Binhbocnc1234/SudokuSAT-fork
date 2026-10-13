@@ -6,7 +6,7 @@ from gurobipy import GRB
 
 def solveSudokuGurobi(grid):
     solverStart = time.perf_counter()
-    timeoutBenchmark = 5
+    timeoutBenchmark = 20
 
     N = len(grid)
     subN = int(N ** 0.5)

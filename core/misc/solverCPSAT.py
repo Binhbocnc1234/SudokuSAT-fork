@@ -3,7 +3,7 @@ from ortools.sat.python import cp_model
 
 def solveSudokuCPSAT(grid):
     solverStart = time.perf_counter()
-    timeoutBenchmark = 5
+    timeoutBenchmark = 20
 
     N = len(grid)
     subN = int(N ** 0.5)

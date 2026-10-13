@@ -8,6 +8,7 @@ from core.sudokuBuilder import getAvailableEncoders, getEncoderByID
 from core.misc.solverCPSAT import solveSudokuCPSAT
 from core.misc.solverGurobi import solveSudokuGurobi
 
+
 GRID_SAMPLES = {9, 16, 25, 36}
 
 # EXPORT
@@ -37,7 +38,6 @@ def exportResult(results, mode=2, filename="benchmark_result.csv"):
                     "Grid Size": res.get("gridSize"),
                     "Method": res.get("method"),
                     "Status": res.get("status"),
-                    "Avg Solving Time (ms)": f"{res.get('avgSolvingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
                     "Avg Total Time (ms)": f"{res.get('avgTotalTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A"
                 })
                 
@@ -60,12 +60,17 @@ def exportResult(results, mode=2, filename="benchmark_result.csv"):
 def simulationParadigm(gridSize, iterations):
     print(f"\n[+] Mode 1: Running Multi-Paradigm Simulation ({iterations} times)")
     
-    pairwiseEnc = getEncoderByID([0])[0] # ID 0: Pairwise/Binomial
+
+    print("\n" + "="*40)
+    print("         RUNNING SIMULATION          ")
+    print("="*40)
+
+    productEnc = getEncoderByID([3])[0] # ID 0: Pairwise/Binomial
     
     methods = [
-        {"name": "PySAT", "type": "SAT", "func": lambda g: solveSudoku(g, pairwiseEnc["func"])},
+        {"name": "PySAT", "type": "SAT", "func": lambda g: solveSudoku(g, productEnc["func"])},
         {"name": "Google OR-Tools CP-SAT", "type": "CP", "func": lambda g: solveSudokuCPSAT(g)},
-        {"name": "Gurobi", "type": "MIP", "func": lambda g: solveSudokuGurobi(g)}
+        {"name": "Gurobi", "type": "ILP", "func": lambda g: solveSudokuGurobi(g)}
     ]
 
     paradigmResults = []
@@ -105,7 +110,6 @@ def simulationParadigm(gridSize, iterations):
                 "gridSize": f"{gridSize}x{gridSize}",
                 "method": m["name"],
                 "status": "COMPLETED",
-                "avgSolvingTime": totalSolvingTime / iterations,
                 "avgTotalTime": totalOverallTime / iterations
             })
 
@@ -118,8 +122,8 @@ def simulationSATEncoder(encoderFunc, encoderName, gridSize, iterations):
     totalEncTime = 0.0
     totalSolverTime = 0.0
     sampleStats = None
-    
-    totalRuns = iterations
+
+    totalRun = iterations
 
     while iterations > 0:
         iterations -= 1
@@ -153,9 +157,9 @@ def simulationSATEncoder(encoderFunc, encoderName, gridSize, iterations):
         "auxVar": sampleStats["auxVar"],
         "numClauses": sampleStats["numClauses"],
         "status": "COMPLETED",
-        "avgEncodingTime": totalEncTime / totalRuns,
-        "avgSolvingTime": totalSolverTime / totalRuns,
-        "avgTotalTime": (totalEncTime + totalSolverTime) / totalRuns
+        "avgEncodingTime": totalEncTime / totalRun,
+        "avgSolvingTime": totalSolverTime / totalRun,
+        "avgTotalTime": (totalEncTime + totalSolverTime) / totalRun
     }
 
     return avgStats
@@ -205,10 +209,6 @@ if __name__ == "__main__":
         results = simulationParadigm(gridSize, numSimulation)
 
         print("\n" + "="*40)
-        print("         RUNNING SIMULATION          ")
-        print("="*40)
-
-        print("\n" + "="*40)
         print("               RESULTS                      ")
         print("="*40)
         print(f" Grid Size            : {results[0]['gridSize']}")
@@ -218,7 +218,6 @@ if __name__ == "__main__":
                 print(f"   + Status           : TIMEOUT")
             else:
                 print(f"   + Status           : COMPLETED")
-                print(f"   + Avg Solving Time : {res['avgSolvingTime']:.4f} ms")
                 print(f"   + Avg Total Time   : {res['avgTotalTime']:.4f} ms")
             print("-" * 60)
 
@@ -254,12 +253,10 @@ if __name__ == "__main__":
 
         encSelected = getEncoderByID(selectedID)
 
-
-
         print("\n" + "="*40)
         print("         RUNNING SIMULATION          ")
         print("="*40)
-
+        
         results = []
         for enc in encSelected:
             res = simulationSATEncoder(
@@ -292,6 +289,9 @@ if __name__ == "__main__":
 
             print("-" * 40)
 
-    # --- EXPORT ---
-    print("EXPORTING RESULT TO CSV...")
-    exportResult(results)
+        # --- EXPORT ---
+        print("EXPORTING RESULT TO CSV...")
+        exportResult(results)
+
+    
+    

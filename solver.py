@@ -14,51 +14,73 @@ def solveSudoku(grid, encoderFunc):
     :param grid: Sudoku grid of size N x N
     :param encoderFunc: Encoder function
     """
-    timeoutBenchmark = 5
+
+    # INITIALIZE PARAMS
+    timeoutBenchmark = 20
 
     N = len(grid)
     maxVar = N ** 3
 
-    encStart = time.perf_counter()
-    clauses, totalVar = encoderFunc(grid)
-    encTime = time.perf_counter() - encStart
+    status = "TIMEOUT"
+    isSat = None
+    clauses = []
+    totalVar = 0
+    encTime = 0.0
+    solverTime = 0.0
+    solver = None
 
+    # REGISTERING ALARM SIGNAL FOR BENCHMARK
     signal.signal(signal.SIGALRM, timeoutHandler)
+
+    startTime = time.perf_counter()
     signal.alarm(timeoutBenchmark)
 
-    solver = Glucose3()
-    for clause in clauses:
-        solver.add_clause(clause)
-
-    solverStart = time.perf_counter()
-    isSat = None
-    status = "TIMEOUT"
-    
     try:
+
+        encStart = time.perf_counter()
+        clauses, totalVar = encoderFunc(grid)
+        encTime = time.perf_counter() - encStart
+
+        solver = Glucose3()
+        for clause in clauses:
+            solver.add_clause(clause)
+
+
+        solverStart = time.perf_counter()
         solveResult = solver.solve()
-        signal.alarm(0)
-
         solverTime = time.perf_counter() - solverStart
-        isSat = solveResult
 
+        isSat = solveResult
         status = "SAT" if isSat else "UNSAT"
 
     except TimeoutException:
-        solverTime = float(timeoutBenchmark)
         status = "TIMEOUT"
         isSat = None
+
+        if encTime == 0.0:
+            encTime = time.perf_counter() - startTime
+            solverTime = 0.0
+        else: 
+            solverTime = time.perf_counter() - (startTime + encTime)
+
+    finally:
+        signal.alarm(0)
+
+        if solver is not None: solver.delete()
+
+    totalTime = time.perf_counter() - startTime
 
     stats = {
         "status" : status,
         "gridSize": f"{N}x{N}",
         "maxVar": maxVar,
         "totalVar": totalVar,
-        "auxVar": totalVar - maxVar,
+        "auxVar": totalVar - maxVar if totalVar > 0 else 0,
         "numClauses": len(clauses),
         "encTime": encTime,
         "solverTime": solverTime,
-        "totalTime": encTime + solverTime
+        "totalTime": totalTime
     }
 
-    solver.delete()
+
     return stats
