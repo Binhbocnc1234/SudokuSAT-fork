@@ -1,12 +1,21 @@
-import signal
+from multiprocessing import Process, Queue
 import time
 from pysat.solvers import Glucose3
 
-class TimeoutException(Exception): pass
+def pysatSolverWorker(clauses, resultQueue):
+    solver = Glucose3()
 
-def timeoutHandler(signum, frame): raise TimeoutException()
+    solver.append_formula(clauses)
 
-def solveSudoku(grid, encoderFunc):
+    solverStart = time.perf_counter()
+    solveResult = solver.solve()
+    solverTime = time.perf_counter() - solverStart
+
+    solver.delete()
+
+    resultQueue.put((solveResult, solverTime))
+
+def solveSudokuPySAT(grid, encoderFunc):
     """
     Solve the Sudoku problem using Glucose3 PySAT solver.
     TIMEOUT when the solver exceeds a certain benchmark.
@@ -16,6 +25,8 @@ def solveSudoku(grid, encoderFunc):
     """
 
     # INITIALIZE PARAMS
+    startTime = time.perf_counter()
+
     timeoutBenchmark = 20
 
     N = len(grid)
@@ -27,46 +38,50 @@ def solveSudoku(grid, encoderFunc):
     totalVar = 0
     encTime = 0.0
     solverTime = 0.0
-    solver = None
 
-    # REGISTERING ALARM SIGNAL FOR BENCHMARK
-    signal.signal(signal.SIGALRM, timeoutHandler)
+    # ENCODING
+    encStart = time.perf_counter()
+    clauses, totalVar = encoderFunc(grid)
+    encTime = time.perf_counter() - encStart
 
-    startTime = time.perf_counter()
-    signal.alarm(timeoutBenchmark)
+    # SOLVING
+    remainingTime = timeoutBenchmark - encTime
 
-    try:
+    if remainingTime > 0:
+        resultQueue = Queue()
 
-        encStart = time.perf_counter()
-        clauses, totalVar = encoderFunc(grid)
-        encTime = time.perf_counter() - encStart
+        # Initiate a Worker process to isolate PySAT's C++ thread
+        p = Process(target=pysatSolverWorker, args=(clauses, resultQueue))
+        
+        p.start()
+        p.join(timeout=remainingTime)  # Wait for a maximum of remainingTime seconds
 
-        solver = Glucose3()
-        for clause in clauses:
-            solver.add_clause(clause)
+        if p.is_alive():
+            # If time exceeded, Process is still running -> TIMEOUT
+            # Force C++ to stop immediately.
 
+            p.terminate()
+            p.join()
 
-        solverStart = time.perf_counter()
-        solveResult = solver.solve()
-        solverTime = time.perf_counter() - solverStart
+            status = "TIMEOUT"
+            isSat = None
+            solverTime = remainingTime
 
-        isSat = solveResult
-        status = "SAT" if isSat else "UNSAT"
+        else:
+            if not resultQueue.empty():
 
-    except TimeoutException:
+                isSat, solverTime = resultQueue.get()
+                status = "SAT" if isSat else "UNSAT"
+
+            else:
+                status = "ERROR"
+                isSat = None
+
+    else:
+        # If encoding phase also exceeded -> TIMEOUT
         status = "TIMEOUT"
         isSat = None
-
-        if encTime == 0.0:
-            encTime = time.perf_counter() - startTime
-            solverTime = 0.0
-        else: 
-            solverTime = time.perf_counter() - (startTime + encTime)
-
-    finally:
-        signal.alarm(0)
-
-        if solver is not None: solver.delete()
+        solverTime = 0.0
 
     totalTime = time.perf_counter() - startTime
 

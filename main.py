@@ -1,7 +1,7 @@
 import csv
 import os
 
-from solver import solveSudoku
+from solver import solveSudokuPySAT
 from core.generateSudokuProblem import generate_random_sudoku as gen
 
 from core.sudokuBuilder import getAvailableEncoders, getEncoderByID
@@ -18,7 +18,7 @@ def exportResult(results, mode=2, filename="benchmark_result.csv"):
     if mode == 1:
         headers = [
             "Grid Size", "Method", "Status", 
-            "Avg Solving Time (ms)", "Avg Total Time (ms)"
+            "Avg Encoding Time (ms)", "Avg Solving Time (ms)", "Avg Total Time (ms)"
         ]
     
     else: 
@@ -38,6 +38,8 @@ def exportResult(results, mode=2, filename="benchmark_result.csv"):
                     "Grid Size": res.get("gridSize"),
                     "Method": res.get("method"),
                     "Status": res.get("status"),
+                    "Avg Encoding Time (ms)": f"{res.get('avgEncodingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
+                    "Avg Solving Time (ms)": f"{res.get('avgSolvingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
                     "Avg Total Time (ms)": f"{res.get('avgTotalTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A"
                 })
                 
@@ -68,7 +70,7 @@ def simulationParadigm(gridSize, iterations):
     productEnc = getEncoderByID([3])[0] # ID 0: Pairwise/Binomial
     
     methods = [
-        {"name": "PySAT", "type": "SAT", "func": lambda g: solveSudoku(g, productEnc["func"])},
+        {"name": "PySAT", "type": "SAT", "func": lambda g: solveSudokuPySAT(g, productEnc["func"])},
         {"name": "Google OR-Tools CP-SAT", "type": "CP", "func": lambda g: solveSudokuCPSAT(g)},
         {"name": "Gurobi", "type": "ILP", "func": lambda g: solveSudokuGurobi(g)}
     ]
@@ -77,8 +79,9 @@ def simulationParadigm(gridSize, iterations):
 
     for m in methods:
         print(f" -> Testing Paradigm: {m['name']}...")
-        totalSolvingTime = 0.0
-        totalOverallTime = 0.0
+        
+        totalEncTime = 0.0
+        totalSolverTime = 0.0
         isTimeout = False
 
         for _ in range(iterations):
@@ -86,18 +89,21 @@ def simulationParadigm(gridSize, iterations):
             res = m["func"](currGrid)
 
             if not res or res.get("status") == "TIMEOUT":
+                print("Paradigm TIMEOUT.")
                 isTimeout = True
                 break
 
             if m["type"] == "SAT":
+                encTime = res["encTime"] * 1000.0
                 solveTime = res["solverTime"] * 1000.0
                 totalTime = (res["encTime"] + res["solverTime"]) * 1000.0
             else:
-                solveTime = res.get("solvingTime", 0.0)
-                totalTime = res.get("solvingTime", 0.0)
+                encTime = res.get("encTime", 0.0) * 1000
+                solveTime = res.get("solverTime", 0.0)* 1000
+                totalTime = res.get("solverTime", 0.0)* 1000
 
-            totalSolvingTime += solveTime
-            totalOverallTime += totalTime
+            totalEncTime += encTime
+            totalSolverTime += solveTime
 
         if isTimeout:
             paradigmResults.append({
@@ -110,7 +116,9 @@ def simulationParadigm(gridSize, iterations):
                 "gridSize": f"{gridSize}x{gridSize}",
                 "method": m["name"],
                 "status": "COMPLETED",
-                "avgTotalTime": totalOverallTime / iterations
+                "avgEncodingTime": totalEncTime / iterations,
+                "avgSolvingTime": totalSolverTime / iterations,
+                "avgTotalTime": (totalEncTime + totalSolverTime) / iterations
             })
 
     return paradigmResults
@@ -123,14 +131,10 @@ def simulationSATEncoder(encoderFunc, encoderName, gridSize, iterations):
     totalSolverTime = 0.0
     sampleStats = None
 
-    totalRun = iterations
-
-    while iterations > 0:
-        iterations -= 1
-
+    for _ in range(iterations):
         currGrid = gen(gridSize)
 
-        stats = solveSudoku(currGrid, encoderFunc)
+        stats = solveSudokuPySAT(currGrid, encoderFunc)
 
         if not stats: return None
 
@@ -157,9 +161,9 @@ def simulationSATEncoder(encoderFunc, encoderName, gridSize, iterations):
         "auxVar": sampleStats["auxVar"],
         "numClauses": sampleStats["numClauses"],
         "status": "COMPLETED",
-        "avgEncodingTime": totalEncTime / totalRun,
-        "avgSolvingTime": totalSolverTime / totalRun,
-        "avgTotalTime": (totalEncTime + totalSolverTime) / totalRun
+        "avgEncodingTime": totalEncTime / iterations,
+        "avgSolvingTime": totalSolverTime / iterations,
+        "avgTotalTime": (totalEncTime + totalSolverTime) / iterations
     }
 
     return avgStats
@@ -218,6 +222,8 @@ if __name__ == "__main__":
                 print(f"   + Status           : TIMEOUT")
             else:
                 print(f"   + Status           : COMPLETED")
+                print(f"   + Avg Encoding Time: {res['avgEncodingTime']:.4f} ms")
+                print(f"   + Avg Solving Time : {res['avgSolvingTime']:.4f} ms")
                 print(f"   + Avg Total Time   : {res['avgTotalTime']:.4f} ms")
             print("-" * 60)
 
