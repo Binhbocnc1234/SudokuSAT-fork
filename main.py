@@ -116,9 +116,9 @@ def simulationParadigm(gridSize, iterations):
                 "gridSize": f"{gridSize}x{gridSize}",
                 "method": m["name"],
                 "status": "COMPLETED",
-                "avgEncodingTime": totalEncTime / iterations,
-                "avgSolvingTime": totalSolverTime / iterations,
-                "avgTotalTime": (totalEncTime + totalSolverTime) / iterations
+                "avgEncodingTime": totalEncTime / iterations * 1000.0,
+                "avgSolvingTime": totalSolverTime / iterations * 1000.0,
+                "avgTotalTime": (totalEncTime + totalSolverTime) / iterations * 1000.0
             })
 
     return paradigmResults
