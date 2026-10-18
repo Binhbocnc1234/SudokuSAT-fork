@@ -72,7 +72,8 @@ def writeTimeTable(groups, methods, sizes, fileName, specialStatus=None):
                 cells.append("SL")
                 continue
             solved, total, median = summarize(runs)
-            text = formatSeconds(median)
+            # A median that falls on a refused run is a size limit, not a timeout.
+            text = "SL" if specialStatus in statuses and median == UNSOLVED else formatSeconds(median)
             if median == best[N] and median != UNSOLVED: text = f"\\textbf{{{text}}}"
             cells.append(f"{text} ({solved}/{total})")
         lines.append(f"{m} & " + " & ".join(cells) + r" \\")
