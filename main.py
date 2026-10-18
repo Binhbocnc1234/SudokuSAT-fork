@@ -1,303 +1,110 @@
+import argparse
 import csv
 import os
+import time
 
 from solver import solveSudokuPySAT
-from core.generateSudokuProblem import generate_random_sudoku as gen
+from core.generateSudokuProblem import generateRandomSudoku
+from core.sudokuBuilder import getAvailableEncoders, getEncoderByName
+from core.verifySolution import isValidSolution
 
-from core.sudokuBuilder import getAvailableEncoders, getEncoderByID
 from core.misc.solverCPSAT import solveSudokuCPSAT
 from core.misc.solverGurobi import solveSudokuGurobi
+from core.misc.solverCplexMIP import solveSudokuCplexMIP
+from core.misc.solverCplexCP import solveSudokuCplexCP
 
 
-GRID_SAMPLES = {9, 16, 25, 36}
+CSV_HEADERS = [
+    "experiment", "gridSize", "cluesRatio", "seed", "method", "encoder", "satSolver", "status", "valid",
+    "totalVar", "auxVar", "numClauses", "encTimeMs", "solveTimeMs", "totalTimeMs"
+]
 
-# EXPORT
-def exportResult(results, mode=2, filename="benchmark_result.csv"):
-    fileExists = os.path.isfile(filename)
+PARADIGMS = {
+    "CP-SAT": solveSudokuCPSAT,
+    "CPLEX-CP": solveSudokuCplexCP,
+    "Gurobi": solveSudokuGurobi,
+    "CPLEX-MIP": solveSudokuCplexMIP
+}
 
-    if mode == 1:
-        headers = [
-            "Grid Size", "Method", "Status", 
-            "Avg Encoding Time (ms)", "Avg Solving Time (ms)", "Avg Total Time (ms)"
-        ]
-    
-    else: 
-        headers = [
-            "Grid Size", "Encoder", "Total Variables", "Auxiliary Variables", "Clauses", 
-            "Status", "Avg Encoding Time (ms)", "Avg Solving Time (ms)", "Avg Total Time (ms)"
-        ]
 
-    with open(filename, mode="a", newline="", encoding="utf-8") as csvFile:
-        writer = csv.DictWriter(csvFile, fieldnames=headers)
-    
+def buildRuns(args):
+    """
+    List the (method, encoder, satSolver, solve function) combinations of one experiment.
+    A solve function maps (grid, timeLimit) to the result dict of its solver module.
+    """
+    runs = []
+
+    if args.experiment == "encoders":
+        for enc in getAvailableEncoders():
+            if args.encoders and enc["name"] not in args.encoders: continue
+            runs.append(("SAT", enc["name"], args.sat_solvers[0],
+                         lambda g, t, e=enc: solveSudokuPySAT(g, e["func"], args.sat_solvers[0], t)))
+
+    elif args.experiment == "solvers":
+        enc = getEncoderByName(args.encoders[0] if args.encoders else "Commander")
+        for name in args.sat_solvers:
+            runs.append(("SAT", enc["name"], name,
+                         lambda g, t, n=name: solveSudokuPySAT(g, enc["func"], n, t)))
+
+    else:
+        enc = getEncoderByName(args.encoders[0] if args.encoders else "Commander")
+        for name in args.sat_solvers:
+            runs.append(("SAT", enc["name"], name,
+                         lambda g, t, n=name: solveSudokuPySAT(g, enc["func"], n, t)))
+        for name, func in PARADIGMS.items():
+            runs.append((name, "", "", lambda g, t, f=func: f(g, t)))
+
+    return runs
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Benchmark SAT encodings, SAT solvers and CP/ILP solvers on Sudoku.")
+    parser.add_argument("experiment", choices=["encoders", "solvers", "paradigms"])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[9, 16, 25, 36])
+    parser.add_argument("--instances", type=int, default=10, help="Puzzles per size; seeds 0..instances-1")
+    parser.add_argument("--clues", type=float, default=0.35, help="Fraction of cells given as clues")
+    parser.add_argument("--timeout", type=float, default=60.0, help="Seconds per run, encoding included")
+    parser.add_argument("--encoders", nargs="*", default=[], help="Encoder names; the first one is used by solvers/paradigms")
+    parser.add_argument("--sat-solvers", nargs="+", default=["glucose3"], help="PySAT solver names")
+    parser.add_argument("--out", required=True, help="CSV file; rows are appended")
+    args = parser.parse_args()
+
+    runs = buildRuns(args)
+    fileExists = os.path.isfile(args.out)
+
+    with open(args.out, "a", newline="", encoding="utf-8") as csvFile:
+        writer = csv.DictWriter(csvFile, fieldnames=CSV_HEADERS)
         if not fileExists: writer.writeheader()
 
-        for res in results:
-            if mode == 1:
-                writer.writerow({
-                    "Grid Size": res.get("gridSize"),
-                    "Method": res.get("method"),
-                    "Status": res.get("status"),
-                    "Avg Encoding Time (ms)": f"{res.get('avgEncodingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
-                    "Avg Solving Time (ms)": f"{res.get('avgSolvingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
-                    "Avg Total Time (ms)": f"{res.get('avgTotalTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A"
-                })
-                
-            else:
-                writer.writerow({
-                    "Grid Size": res.get("gridSize"),
-                    "Encoder": res.get("encoder"),
-                    "Total Variables": res.get("totalVar"),
-                    "Auxiliary Variables": res.get("auxVar"),
-                    "Clauses": res.get("numClauses"),
-                    "Status": res.get("status"),
-                    "Avg Encoding Time (ms)": f"{res.get('avgEncodingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
-                    "Avg Solving Time (ms)": f"{res.get('avgSolvingTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A",
-                    "Avg Total Time (ms)": f"{res.get('avgTotalTime', 0):.4f}" if res.get("status") != "TIMEOUT" else "N/A"
-                })
+        for N in args.sizes:
+            for seed in range(args.instances):
+                # Every method of one experiment solves the same puzzles.
+                puzzle, _ = generateRandomSudoku(N, args.clues, seed)
 
-    print(f"Results successfully exported to '{filename}'")
+                for method, encoder, satSolver, solve in runs:
+                    wallStart = time.perf_counter()
+                    res = solve(puzzle, args.timeout)
+                    wallTime = time.perf_counter() - wallStart
 
-# MODE 1: PARADIGM SIMULATION
-def simulationParadigm(gridSize, iterations):
-    print(f"\n[+] Mode 1: Running Multi-Paradigm Simulation ({iterations} times)")
-    
+                    valid = res["board"] is not None and isValidSolution(puzzle, res["board"])
+                    if res["status"] == "SAT" and not valid:
+                        raise RuntimeError(f"{method}/{encoder}/{satSolver} returned an invalid board for N={N}, seed={seed}")
 
-    print("\n" + "="*40)
-    print("         RUNNING SIMULATION          ")
-    print("="*40)
+                    writer.writerow({
+                        "experiment": args.experiment, "gridSize": N, "cluesRatio": args.clues, "seed": seed,
+                        "method": method, "encoder": encoder, "satSolver": satSolver,
+                        "status": res["status"], "valid": valid,
+                        "totalVar": res.get("totalVar", ""), "auxVar": res.get("auxVar", ""),
+                        "numClauses": res.get("numClauses", ""),
+                        "encTimeMs": f"{res['encTime'] * 1000:.3f}",
+                        "solveTimeMs": f"{res['solveTime'] * 1000:.3f}",
+                        "totalTimeMs": f"{wallTime * 1000:.3f}"
+                    })
+                    csvFile.flush()
 
-    productEnc = getEncoderByID([3])[0] # ID 0: Pairwise/Binomial
-    
-    methods = [
-        {"name": "PySAT", "type": "SAT", "func": lambda g: solveSudokuPySAT(g, productEnc["func"])},
-        {"name": "Google OR-Tools CP-SAT", "type": "CP", "func": lambda g: solveSudokuCPSAT(g)},
-        {"name": "Gurobi", "type": "ILP", "func": lambda g: solveSudokuGurobi(g)}
-    ]
-
-    paradigmResults = []
-
-    for m in methods:
-        print(f" -> Testing Paradigm: {m['name']}...")
-        
-        totalEncTime = 0.0
-        totalSolverTime = 0.0
-        isTimeout = False
-
-        for _ in range(iterations):
-            currGrid = gen(gridSize)
-            res = m["func"](currGrid)
-
-            if not res or res.get("status") == "TIMEOUT":
-                print("Paradigm TIMEOUT.")
-                isTimeout = True
-                break
-
-            if m["type"] == "SAT":
-                encTime = res["encTime"] * 1000.0
-                solveTime = res["solverTime"] * 1000.0
-                totalTime = (res["encTime"] + res["solverTime"]) * 1000.0
-            else:
-                encTime = res.get("encTime", 0.0) * 1000
-                solveTime = res.get("solverTime", 0.0)* 1000
-                totalTime = res.get("solverTime", 0.0)* 1000
-
-            totalEncTime += encTime
-            totalSolverTime += solveTime
-
-        if isTimeout:
-            paradigmResults.append({
-                "gridSize": f"{gridSize}x{gridSize}",
-                "method": m["name"],
-                "status": "TIMEOUT"
-            })
-        else:
-            paradigmResults.append({
-                "gridSize": f"{gridSize}x{gridSize}",
-                "method": m["name"],
-                "status": "COMPLETED",
-                "avgEncodingTime": totalEncTime / iterations * 1000.0,
-                "avgSolvingTime": totalSolverTime / iterations * 1000.0,
-                "avgTotalTime": (totalEncTime + totalSolverTime) / iterations * 1000.0
-            })
-
-    return paradigmResults
-
-# MODE 2: PySAT ENCODER
-def simulationSATEncoder(encoderFunc, encoderName, gridSize, iterations):
-    print(f"\n[+] Mode 2: Running PySAT Encoder Simulation {iterations} times | Encoder: {encoderName}")
-
-    totalEncTime = 0.0
-    totalSolverTime = 0.0
-    sampleStats = None
-
-    for _ in range(iterations):
-        currGrid = gen(gridSize)
-
-        stats = solveSudokuPySAT(currGrid, encoderFunc)
-
-        if not stats: return None
-
-        if stats.get("status") == "TIMEOUT":
-            print("Encoder TIMEOUT.")
-
-            return {
-                "encoder": encoderName,
-                "gridSize": stats["gridSize"],
-                "totalVar": stats["totalVar"],
-                "auxVar": stats["auxVar"],
-                "numClauses": stats["numClauses"],
-                "status": "TIMEOUT"
-            }
-
-        totalEncTime += stats["encTime"]
-        totalSolverTime += stats["solverTime"]
-        sampleStats = stats
-
-    avgStats = {
-        "encoder": encoderName,
-        "gridSize": sampleStats["gridSize"],
-        "totalVar": sampleStats["totalVar"],
-        "auxVar": sampleStats["auxVar"],
-        "numClauses": sampleStats["numClauses"],
-        "status": "COMPLETED",
-        "avgEncodingTime": totalEncTime / iterations,
-        "avgSolvingTime": totalSolverTime / iterations,
-        "avgTotalTime": (totalEncTime + totalSolverTime) / iterations
-    }
-
-    return avgStats
+                    print(f"N={N:2d} seed={seed} {method:9s} {encoder:10s} {satSolver:10s} "
+                          f"{res['status']:10s} {wallTime * 1000:10.1f} ms", flush=True)
 
 
 if __name__ == "__main__":
-    # --- INPUTS ---
-    print("=" * 40)
-    print("      INPUT STARTS      ")
-    print("=" * 40)
-
-    # MODE SELECTION
-    print("Select Mode:")
-    print("  [1] Mode 1: Multi-Paradigm Comparison (PySAT / CP-SAT / Gurobi / CPlex)")
-    print("  [2] Mode 2: PySAT Encoders Comparison (Default)")
-
-    try:
-        mode = int(input("\n[?] Select mode (default=2): ").strip())
-    except ValueError:
-        mode = 2
-
-    if mode not in (1, 2):
-        mode = 2
-
-    if mode == 1: print(f"\n>>> MODE 1: MULTI-PARADIGM COMPARISON <<<")
-    else: print(f"\n>>> MODE 2: PYSAT ENCODER COMPARISON <<<")
-    # GRID SIZE
-    try:
-        gridSize = int(input("\n[?] Input grid size (9, 16, 25, 36): "))
-    except ValueError:
-        gridSize = 9
-        print("  -> Invalid input, defaulting to 9.")
-
-    if gridSize not in GRID_SAMPLES:
-        print(f"  -> Invalid input, defaulting to 9.")
-        gridSize = 9
-
-    # SIM AMOUNT
-    try:
-        numSimulation = int(input("\n[?] Input simulation amount: "))
-    except ValueError:
-        print("  -> Invalid amount, defaulting to 50 tries.")
-        numSimulation = 50
-
-    # --- RUNNING SIM (MODE 1) ---
-    if mode == 1:
-        results = simulationParadigm(gridSize, numSimulation)
-
-        print("\n" + "="*40)
-        print("               RESULTS                      ")
-        print("="*40)
-        print(f" Grid Size            : {results[0]['gridSize']}")
-        for res in results:
-            print(f" - Method          : {res['method']}")
-            if res.get("status") == "TIMEOUT":
-                print(f"   + Status           : TIMEOUT")
-            else:
-                print(f"   + Status           : COMPLETED")
-                print(f"   + Avg Encoding Time: {res['avgEncodingTime']:.4f} ms")
-                print(f"   + Avg Solving Time : {res['avgSolvingTime']:.4f} ms")
-                print(f"   + Avg Total Time   : {res['avgTotalTime']:.4f} ms")
-            print("-" * 60)
-
-        exportResult(results, mode=1, filename="benchmark_paradigms_result.csv")
-
-
-    # --- RUNNING SIM (MODE 2) --- 
-    else:
-
-        # ENCODER
-        encoders = getAvailableEncoders()
-        print("\nList of available encoders:")
-
-        for enc in encoders:
-            print(f"   [{enc['id']}] {enc['name']}")
-        
-        print("   [-1] ALL (default)")
-
-        raw = input("\n[?] Input encoder IDs (e.g. '0, 2, 4' or '-1' for all): ").strip()
-
-        selectedID = []
-        if raw:
-           parts = raw.replace(",", " ").split()
-
-           for p in parts:
-                try:
-                    selectedID.append(int(p))
-                except ValueError:
-                    pass
-
-        
-        if not selectedID: selectedID = [-1] # default
-
-        encSelected = getEncoderByID(selectedID)
-
-        print("\n" + "="*40)
-        print("         RUNNING SIMULATION          ")
-        print("="*40)
-        
-        results = []
-        for enc in encSelected:
-            res = simulationSATEncoder(
-                encoderFunc=enc["func"],
-                encoderName=enc["name"],
-                gridSize=gridSize,
-                iterations=numSimulation
-            )
-            if res:
-                results.append(res)
-
-        # --- RESULT---
-        print("\n" + "="*40)
-        print("               RESULTS                      ")
-        print("="*40)
-        print(f" Grid Size            : {res['gridSize']}")
-
-        for res in results:
-            print(f" - Encoder            : {res['encoder']}")
-            print(f"   + Variable amount  : {res['totalVar']} (Aux: {res['auxVar']})")
-            print(f"   + Clause amount    : {res['numClauses']}")
-        
-            if res.get("status") == "TIMEOUT":
-                print(f"   + Status           : TIMEOUT")
-
-            else:
-                print(f"   + Avg encoding time: {res['avgEncodingTime'] * 1000:.4f} ms")
-                print(f"   + Avg solving time : {res['avgSolvingTime'] * 1000:.4f} ms")
-                print(f"   + Avg total time   : {res['avgTotalTime'] * 1000:.4f} ms")
-
-            print("-" * 40)
-
-        # --- EXPORT ---
-        print("EXPORTING RESULT TO CSV...")
-        exportResult(results)
-
-    
-    
+    main()

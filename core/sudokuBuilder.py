@@ -1,21 +1,23 @@
 from functools import partial
 from pysat.card import EncType
 
-from core.encoderCustom import eoBinomal, eoBinary, eoProduct
+from core.encoderCustom import eoBinomial, eoBinary, eoProduct, eoCommander
 from core.encoderPySATDefault import eoDefault
 
 from core.generateSudokuClauses import generateSudokuClauses
 
+# Pairwise, Binary, Product and Commander are implemented in core/encoderCustom.py.
+# Sequential Counter and Ladder come from pysat.card.CardEnc.
 ENCODER_FACTORY = {
     0: {
         "id": 0,
-        "name": "Binomal/Pairwise",
-        "func": lambda grid: generateSudokuClauses(grid, eoBinomal)
+        "name": "Pairwise",
+        "func": lambda grid: generateSudokuClauses(grid, eoBinomial)
     },
 
     1: {
         "id": 1,
-        "name": "Binary/Bitwise",
+        "name": "Binary",
         "func": lambda grid: generateSudokuClauses(grid, eoBinary)
     },
 
@@ -33,31 +35,23 @@ ENCODER_FACTORY = {
 
     4: {
         "id": 4,
-        "name": "Commander/Ladder",
+        "name": "Commander",
+        "func": lambda grid: generateSudokuClauses(grid, eoCommander)
+    },
+
+    5: {
+        "id": 5,
+        "name": "Ladder",
         "func": lambda grid: generateSudokuClauses(grid, partial(eoDefault, encType=EncType.ladder))
     }
-
 }
 
 def getAvailableEncoders():
     return list(ENCODER_FACTORY.values())
 
-def getEncoderByID(ids):
-    if not ids or -1 in ids:
-        return list(ENCODER_FACTORY.values())
+def getEncoderByName(name):
+    for enc in ENCODER_FACTORY.values():
+        if enc["name"] == name:
+            return enc
 
-    if isinstance(ids, int):
-        ids = [ids]
-
-    selected = []
-    for id in ids:
-        if id in ENCODER_FACTORY:
-            selected.append(ENCODER_FACTORY[id])
-        else:
-            print(f" -> Warning: ID {id} is invalid. Skipped.")  
-    
-    if not selected:
-        print(" -> No valid encoders selected. Selecting ALL encoders.")
-        return list(ENCODER_FACTORY.values())
-
-    return selected
+    raise KeyError(f"Unknown encoder '{name}'. Available: {[e['name'] for e in ENCODER_FACTORY.values()]}")

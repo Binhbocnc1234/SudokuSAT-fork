@@ -8,6 +8,19 @@ import math
 def generateVar(row, col, val, N):
     return (row - 1) * (N ** 2) + (col - 1) * N + val
 
+def decodeModel(model, N):
+    """
+    Translate a SAT model back into an N x N board. Only the N^3 cell variables are read.
+    """
+    board = [[0] * N for _ in range(N)]
+
+    for lit in model[:N ** 3]:
+        if lit > 0:
+            idx = lit - 1
+            board[idx // (N * N)][(idx // N) % N] = idx % N + 1
+
+    return board
+
 # Given a grid/2D array of size N x N, translate the grid into a SAT problem.
 def generateSudokuClauses(grid, eoFunc):
     """
