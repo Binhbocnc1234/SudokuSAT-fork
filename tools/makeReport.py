@@ -1,5 +1,5 @@
 """
-Turn the CSV files in results/ into the LaTeX tables and PDF figures that paper/main.tex includes.
+Turn the CSV files in results/ into the LaTeX table rows that paper/ includes.
 
 Run: .venv/bin/python tools/makeReport.py
 """
@@ -8,14 +8,9 @@ import os
 import statistics
 from collections import defaultdict
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 RESULTS = os.path.join(ROOT, "results")
 TABLES = os.path.join(ROOT, "paper", "tables")
-FIGURES = os.path.join(ROOT, "paper", "figures")
 
 # A run that did not return a board counts as this many seconds when a median is taken,
 # so a median falls on TIMEOUT when more than half of the runs failed.
@@ -82,34 +77,8 @@ def writeTimeTable(groups, methods, sizes, fileName, specialStatus=None):
         f.write("\n".join(lines) + "\n")
 
 
-def plotLines(groups, methods, sizes, fileName, ylabel):
-    fig, ax = plt.subplots(figsize=(5.2, 3.0))
-    for m in methods:
-        xs, ys = [], []
-        for N in sizes:
-            if (m, N) not in groups: continue
-            _, _, median = summarize(groups[m, N])
-            if median != UNSOLVED:
-                xs.append(N)
-                ys.append(median)
-        if xs:
-            ax.plot(xs, ys, marker="o", label=m)
-
-    ax.set_yscale("log")
-    ax.set_xticks(sizes)
-    ax.set_xticklabels([f"{N}x{N}" for N in sizes])
-    ax.set_xlabel("Grid size")
-    ax.set_ylabel(ylabel)
-    ax.grid(True, which="both", alpha=0.3)
-    ax.legend(fontsize=7, ncol=2)
-    fig.tight_layout()
-    fig.savefig(os.path.join(FIGURES, fileName))
-    plt.close(fig)
-
-
 def main():
     os.makedirs(TABLES, exist_ok=True)
-    os.makedirs(FIGURES, exist_ok=True)
 
     rows = readRows("encoders.csv")
     encoders = list(dict.fromkeys(r["encoder"] for r in rows))
@@ -130,9 +99,8 @@ def main():
         sizes = sorted({int(r["gridSize"]) for r in rows})
         groups = groupBy(rows, label)
         writeTimeTable(groups, methods, sizes, "paradigmTime.tex", specialStatus="SIZE_LIMIT")
-        plotLines(groups, methods, sizes, "paradigmTime.pdf", "Median total time (s)")
 
-    print(f"Wrote tables to {TABLES} and figures to {FIGURES}")
+    print(f"Wrote tables to {TABLES}")
 
 
 if __name__ == "__main__":
