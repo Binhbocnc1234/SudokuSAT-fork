@@ -1,2 +1,14 @@
 *.pyc
-*.csv
+.venv/
+__pycache__/
+.pytest_cache/
+# A Gurobi license holds account credentials.
+gurobi.lic
+# LaTeX build files; the compiled paper/main.pdf is committed.
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+paper/*.spl
