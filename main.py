@@ -61,7 +61,8 @@ def main():
     parser = argparse.ArgumentParser(description="Benchmark SAT encodings, SAT solvers and CP/ILP solvers on Sudoku.")
     parser.add_argument("experiment", choices=["encoders", "solvers", "paradigms"])
     parser.add_argument("--sizes", type=int, nargs="+", default=[9, 16, 25, 36])
-    parser.add_argument("--instances", type=int, default=10, help="Puzzles per size; seeds 0..instances-1")
+    parser.add_argument("--instances", type=int, default=10, help="Puzzles per size")
+    parser.add_argument("--first-seed", type=int, default=0, help="Seed of the first puzzle; resumes an interrupted run")
     parser.add_argument("--clues", type=float, default=0.35, help="Fraction of cells given as clues")
     parser.add_argument("--timeout", type=float, default=60.0, help="Seconds per run, encoding included")
     parser.add_argument("--encoders", nargs="*", default=[], help="Encoder names; the first one is used by solvers/paradigms")
@@ -77,7 +78,7 @@ def main():
         if not fileExists: writer.writeheader()
 
         for N in args.sizes:
-            for seed in range(args.instances):
+            for seed in range(args.first_seed, args.first_seed + args.instances):
                 # Every method of one experiment solves the same puzzles.
                 puzzle, _ = generateRandomSudoku(N, args.clues, seed)
 
