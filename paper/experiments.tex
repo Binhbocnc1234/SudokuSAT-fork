@@ -1,0 +1,25 @@
+\section{Experiments}\label{sec:exp}
+
+\paragraph{Setup.} All runs use one laptop: Intel Core i5-13450HX, 15~GB RAM, Ubuntu 24.04, Python 3.12. SAT solvers are called through PySAT 1.9~\cite{pysat}. The other solvers are OR-Tools CP-SAT 9.15~\cite{ortools}, Gurobi 13.0~\cite{gurobi} with an academic license, and CPLEX and CP Optimizer 22.2 Community Edition~\cite{cplex}. Every solver runs on one thread, since the SAT solvers are sequential. Runs are sequential, so they do not compete for the CPU.
+
+\paragraph{Instances.} A puzzle of order $N$ is generated from a valid complete grid whose bands, stacks, rows, columns and symbols are shuffled at random; then 35\% of the cells are kept as clues. Every puzzle is therefore satisfiable. Seeds $0$--$9$ give 10 puzzles per size (5 at $49\times49$), and every method of an experiment solves the same puzzles.
+
+\paragraph{Measures.} The time of a run is wall-clock time from the start of model building in Python to the solver's answer, so it includes encoding. The limit is 60~s per run, and a run that reaches it counts as a timeout (TO). Each table cell gives the median time over the puzzles, counting a timeout as infinite, and in brackets how many puzzles were solved. A median is TO when more than half of the runs timed out. Every returned board is checked, and none was invalid.
+
+\subsection{Exactly-One encodings}
+
+\begin{table}[t]
+\caption{Median total time (s) of each Exactly-One encoding under Glucose~3, with puzzles solved out of 10. Bold: fastest per size.}\label{tab:enc}
+\centering\small
+\begin{tabular}{lrrrr}
+\toprule
+Encoding & $9\times9$ & $16\times16$ & $25\times25$ & $36\times36$ \\
+\midrule
+\inputrows tables/encoderTime.tex 
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:enc} shows two regimes. Up to $25\times25$, every encoding solves in under 0.5~s and the total time follows the formula size: Commander, the smallest formula (Table~\ref{tab:amo}), is fastest at every size, and Pairwise is slowest at $25\times25$ with 4 times as many clauses as Commander. At $36\times36$ the order reverses. Pairwise is fastest with a median of 2.2~s, and all ten of its runs lie between 2.0 and 3.4~s. The linear encodings have medians of 5.3 to 10.0~s and range from 0.8 to 31~s on the same puzzles. Pairwise spends a median 1.2~s building its 3.27 million clauses in Python and only 0.9~s solving, while Commander needs 0.3~s to encode and 5.1~s to solve. Since Section~\ref{sec:amo} shows the two propagate the same, the gap at $36\times36$ lies in the search, not in propagation. A plausible cause, which we did not measure, is that the solver branches on auxiliary variables, which carry no direct meaning on the board. Once solving dominates, the extra second Pairwise spends on encoding no longer matters. We use Pairwise for the remaining experiments, because they reach $36\times36$ and beyond.
+
+\input{experimentsSolvers}

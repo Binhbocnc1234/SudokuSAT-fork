@@ -1,0 +1,6 @@
+\begin{abstract}
+A generalized Sudoku of order $N$ asks to complete an $N\times N$ grid so that every row, column and $\sqrt N\times\sqrt N$ box holds each value once. We solve it exactly with SAT and study the part of the SAT model that grows fastest: the At-Most-One constraint. On $9\times9$ to $36\times36$ puzzles we compare six encodings (Pairwise, Binary, Sequential Counter, Ladder, Product, Commander) under Glucose~3. Commander is fastest up to $25\times25$, while Pairwise, with 6 times more clauses, is fastest and most stable at $36\times36$. With Pairwise, five PySAT solvers perform alike up to $36\times36$; at $49\times49$ Kissat, CaDiCaL and MiniSat solve all puzzles and Glucose solves 2 of 5. Finally, we compare SAT with CP-SAT, CPLEX CP Optimizer, Gurobi and CPLEX MIP on the same puzzles. CP-SAT is fastest from $25\times25$ on, SAT with Kissat solves every puzzle at 3 to 4 times its time, and Gurobi solves no puzzle of size $36\times36$ or larger within 60~s.
+\end{abstract}
+\begin{keywords}
+Sudoku \sep SAT encoding \sep At-Most-One \sep Constraint programming \sep Integer linear programming \sep PySAT
+\end{keywords}

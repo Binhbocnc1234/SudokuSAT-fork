@@ -1,0 +1,17 @@
+\subsection{SAT solvers}
+
+\begin{table}[t]
+\caption{Median total time (s) of five PySAT solvers on the Pairwise encoding, with puzzles solved (10 per size, 5 at $49\times49$). Bold: fastest per size.}\label{tab:solvers}
+\centering\small
+\begin{tabular}{lrrrrr}
+\toprule
+Solver & $9\times9$ & $16\times16$ & $25\times25$ & $36\times36$ & $49\times49$ \\
+\midrule
+\inputrows tables/solverTime.tex 
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:solvers} compares MiniSat 2.2~\cite{minisat}, Glucose 3.0 and 4.1~\cite{glucose}, CaDiCaL 1.9.5~\cite{cadical} and Kissat 4.0.4~\cite{kissat}. Up to $36\times36$ the five solvers stay within 0.9~s of each other, because Python encoding takes most of the time. CaDiCaL and Kissat are slightly slower on small grids for a technical reason: PySAT cannot interrupt them, so they run in a separate process that is killed at the limit, and starting it costs about 5 to 10~ms. At $49\times49$, the formula has 11.3 million clauses and takes a median 3.7~s to encode, and the solvers separate: MiniSat, CaDiCaL and Kissat solve all 5 puzzles in a median 10 to 12~s, while both Glucose versions solve only 2.
+
+\input{experimentsParadigms}

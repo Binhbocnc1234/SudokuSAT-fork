@@ -1,0 +1,13 @@
+\section{Introduction}
+
+A $9\times9$ Sudoku is solved by any method in milliseconds. Its generalization to $N\times N$ grids is NP-complete~\cite{yato2003}, and at $N\ge36$ the choice of model decides whether a puzzle is solved in a second or not at all. Three exact paradigms apply: Boolean satisfiability (SAT), constraint programming (CP) with the global $\mathrm{AllDifferent}$ constraint, and integer linear programming (ILP).
+
+For SAT, the hard part of the model is the Exactly-One constraint: every cell holds one value, and every row, column and box holds each value once. The naive pairwise encoding grows as $\Theta(N^4)$ clauses, so the encoding of the At-Most-One (AMO) half determines the formula size, and also how much unit propagation the solver gets.
+
+This paper makes three contributions:
+\begin{enumerate}
+\item A measured comparison of six AMO encodings (Pairwise, Binary, Sequential Counter, Ladder, Product, Commander) on $9\times9$ to $36\times36$ grids, with formula sizes and solve times.
+\item A comparison of five SAT solvers available in PySAT~\cite{pysat} (MiniSat, Glucose 3 and 4, CaDiCaL, Kissat) on the best encoding, up to $49\times49$.
+\item A comparison of SAT with CP-SAT, CPLEX CP Optimizer, Gurobi and CPLEX MIP on the same puzzles, machine and time limit.
+\end{enumerate}
+Section~\ref{sec:models} gives the three models, Section~\ref{sec:amo} the encodings, Section~\ref{sec:exp} the experiments, and Section~\ref{sec:conclusion} the conclusions and limits.

@@ -1,0 +1,34 @@
+\documentclass[a4paper,fleqn]{cas-sc}
+\usepackage[numbers]{natbib}
+\usepackage{booktabs}
+\usepackage{graphicx}
+% The primitive \input is expandable, so a generated table body can end right before \bottomrule.
+\makeatletter\let\inputrows\@@input\makeatother
+
+\shorttitle{SAT Encodings for Generalized Sudoku}
+\shortauthors{N.T. Binh, T.T. Cuong}
+
+\begin{document}
+\let\WriteBookmarks\relax
+
+\title[mode=title]{Exact SAT Solving for Generalized Sudoku: Exactly-One Encodings, SAT Solvers and a Comparison with CP and ILP}
+
+\author[1]{Nguyen Thanh Binh}
+\cormark[1]
+\ead{24021391@vnu.edu.vn}
+\author[1]{Tran Tuan Cuong}
+\ead{24021399@vnu.edu.vn}
+\affiliation[1]{organization={Faculty of Information Technology, VNU University of Engineering and Technology},
+  addressline={144 Xuan Thuy, Cau Giay}, city={Hanoi}, country={Vietnam}}
+\cortext[1]{Corresponding author}
+
+\input{abstract}
+
+\maketitle
+
+\input{intro}
+\input{method}
+\input{experiments}
+\input{closing}
+
+\end{document}

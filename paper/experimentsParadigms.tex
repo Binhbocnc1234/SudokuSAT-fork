@@ -1,0 +1,27 @@
+\subsection{SAT against CP and ILP}
+
+\begin{table}[t]
+\caption{Median total time (s) of SAT (Pairwise encoding) and the CP and ILP solvers, with puzzles solved (10 per size, 5 at $49\times49$). SL: the CPLEX Community Edition refused the model size. Bold: fastest per size.}\label{tab:paradigms}
+\centering\small
+\begin{tabular}{lrrrrr}
+\toprule
+Method & $9\times9$ & $16\times16$ & $25\times25$ & $36\times36$ & $49\times49$ \\
+\midrule
+\inputrows tables/paradigmTime.tex 
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:paradigms} runs SAT with Glucose~3, the baseline of the earlier experiments, and with Kissat, which solved every $49\times49$ puzzle in Table~\ref{tab:solvers}. Up to $16\times16$ every method answers in under 0.12~s. From $25\times25$ on, three groups appear:
+\begin{itemize}
+\item \textbf{CP-SAT} is fastest and solves every puzzle: 0.14, 0.66 and 3.2~s at $25\times25$, $36\times36$ and $49\times49$. Its $\mathrm{AllDifferent}$ propagation works on whole units instead of on the $N^3$ Boolean variables.
+\item \textbf{SAT with Kissat} also solves every puzzle, 3 to 4 times slower than CP-SAT at the two largest sizes (2.8 and 9.6~s). Part of the gap is Python encoding, which takes a median 3.7~s at $49\times49$. Glucose~3 solves only 2 of the 5 largest puzzles.
+\item \textbf{Gurobi} slows sharply: 9.0~s at $25\times25$, and no puzzle solved within 60~s at $36\times36$ or $49\times49$.
+\end{itemize}
+CPLEX could only be compared on small grids, because the Community Edition limits a MIP model to 1000 variables and constraints and a CP model to a search space of $2^{1000}$. CPLEX CP Optimizer was the fastest method at $16\times16$; CPLEX MIP solved the 3 of 10 $16\times16$ puzzles that fit its limit.
+
+\section{Conclusion}\label{sec:conclusion}
+
+On generalized Sudoku up to $49\times49$, the best AMO encoding depends on the grid size. Commander gives the smallest formula and the fastest runs up to $25\times25$, while at $36\times36$ Pairwise is fastest and the most stable, although it has 6 times as many clauses. The choice of SAT solver matters only on the largest grids, where Kissat, CaDiCaL and MiniSat solve all puzzles and Glucose solves 2 of 5. Against other paradigms, CP-SAT is the fastest exact method at every size from $25\times25$ on, SAT with Kissat follows at 3 to 4 times its time, and Gurobi fails from $36\times36$.
+
+The study has limits. All puzzles come from one generator with 35\% clues, so other clue ratios, which can be much harder, are not covered. Runs use one machine and one thread. CPLEX was limited by its Community Edition. The encoding is built in Python, which takes 26 to 48\% of the time of SAT with Kissat at $49\times49$. Future work: study the effect of the clue ratio, move encoding to compiled code, and test CPLEX with an academic license.

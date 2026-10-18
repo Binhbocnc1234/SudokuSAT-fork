@@ -1,0 +1,49 @@
+\section{Models}\label{sec:models}
+
+A generalized Sudoku of order $N=n^2$ is an $N\times N$ grid split into $N$ boxes of $n\times n$ cells. A solution places one value of $\{1,\dots,N\}$ in every cell so that every row, column and box contains each value exactly once, and keeps every given clue. Deciding whether a partially filled grid can be completed is NP-complete~\cite{yato2003}.
+
+\paragraph{SAT model.} The Boolean variable $x_{r,c,v}$ is true when cell $(r,c)$ holds value $v$, giving $N^3$ variables. We use the \emph{extended} encoding of Lynce and Ouaknine~\cite{lynce2006}: an Exactly-One (EO) constraint over each of the $4N^2$ groups below, plus one unit clause $x_{r,c,v}$ per clue.
+\begin{align}
+&\mathrm{EO}\{x_{r,c,v} : v\} \;\; \forall r,c, &
+&\mathrm{EO}\{x_{r,c,v} : c\} \;\; \forall r,v, \label{eq:eo1}\\
+&\mathrm{EO}\{x_{r,c,v} : r\} \;\; \forall c,v, &
+&\mathrm{EO}\{x_{r,c,v} : (r,c)\in B\} \;\; \forall B,v. \label{eq:eo2}
+\end{align}
+Each EO group has exactly $N$ variables. $\mathrm{EO}(X)$ is the At-Least-One (ALO) clause $\bigvee_{x\in X}x$ together with an At-Most-One (AMO) constraint, and the AMO part is where encodings differ (Section~\ref{sec:amo}).
+
+\paragraph{CP model.} One integer variable $y_{r,c}$ per empty cell, and an $\mathrm{AllDifferent}$ over the empty cells of each row, column and box. A clue is a constant, so its value is removed from the domains of the empty cells that share a row, column or box with it.
+
+\paragraph{ILP model.} A 0-1 feasibility model with $x_{r,c,v}\in\{0,1\}$ for each empty cell and each remaining candidate value $v$, the constraint $\sum_v x_{r,c,v}=1$ per cell, and $\sum_{(r,c)\in U} x_{r,c,v}=1$ for each unit $U$ (row, column or box) and each value $v$ that no clue of $U$ already holds.
+
+The CP and ILP models therefore start from the candidates that remain after the clues are applied. The SAT solver reaches the same reduction itself, because unit propagation of the clue clauses removes those values before the first decision.
+
+\section{At-Most-One encodings}\label{sec:amo}
+
+Table~\ref{tab:amo} lists the six AMO encodings we evaluate. The Pairwise encoding needs $\binom{N}{2}$ clauses per group, so the whole grid needs $4N^2\binom{N}{2}=\Theta(N^4)$ clauses: 3.27 million at $N=36$. The other five add auxiliary variables to reach $O(N\log N)$ or $O(N)$ clauses per group. We describe in detail only the two encodings that win in Section~\ref{sec:exp}: Commander on grids up to $25\times25$, and Pairwise at $36\times36$. Binary~\cite{frisch2005}, Sequential Counter~\cite{sinz2005}, Ladder~\cite{gent2004} and Product~\cite{chen2010} follow their original papers and are only listed.
+
+\begin{table}[t]
+\caption{Exactly-One encodings of one group of $m$ variables: the ALO clause plus the AMO encoding. Clause and auxiliary-variable counts are measured on our implementation at $m=36$, the group size of a $36\times36$ grid.}\label{tab:amo}
+\centering\small
+\begin{tabular}{lrrlll}
+\toprule
+Encoding & Clauses & Aux.\ vars & Growth & Source & Implementation \\
+\midrule
+Pairwise & 631 & 0 & $\Theta(m^2)$ & folklore & ours \\
+Binary & 217 & 6 & $\Theta(m\log m)$ & Frisch et al.~\cite{frisch2005} & ours \\
+Sequential Counter & 105 & 35 & $\Theta(m)$ & Sinz~\cite{sinz2005} & PySAT \\
+Ladder & 145 & 37 & $\Theta(m)$ & Gent and Nightingale~\cite{gent2004} & PySAT \\
+Product & 105 & 22 & $\Theta(m)$ & Chen~\cite{chen2010} & ours \\
+Commander ($k=3$) & 103 & 16 & $\Theta(m)$ & Klieber and Kwon~\cite{klieber2007} & ours \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Pairwise.} For every pair $x_i,x_j$ of the group, add $\neg x_i\vee\neg x_j$. It adds no variable, and once one $x_i$ is set true, unit propagation falsifies the other $m-1$ variables in one step. This is the strongest propagation possible, and the clause count is its only cost.
+
+\paragraph{Commander.} The group is split into $\lceil m/k\rceil$ blocks of $k=3$ variables. Each block $G_i$ gets a new \emph{commander} variable $c_i$:
+\begin{equation}\label{eq:commander}
+\mathrm{AMO}_{\mathrm{pairwise}}(G_i) \;\wedge\; \bigwedge_{x\in G_i}(\neg x\vee c_i) \;\wedge\; \mathrm{AMO}(c_1,\dots,c_{\lceil m/k\rceil}).
+\end{equation}
+A true variable raises its commander, and two true variables in different blocks would raise two commanders, which the last term forbids. That term is encoded recursively in the same way, until at most $k+1$ variables remain and Pairwise finishes. Each level costs $\binom{k}{2}+k=6$ clauses per block and turns $m$ variables into $m/3$, so the total is about $3m$ clauses and $m/3+m/9+\dots\approx m/2$ auxiliary variables. Propagation is as strong as Pairwise: a true $x\in G_i$ forces $c_i$, the commander AMO falsifies every other $c_j$, each clause $\neg x'\vee c_j$ then falsifies every variable of the other blocks, and the pairwise clauses of $G_i$ falsify the rest of the block. Commander reaches this with 16 auxiliary variables at $m=36$, the fewest of the linear encodings. Since both encodings propagate the same, a speed difference between them comes from the size of the formula and from the search, which can now branch on auxiliary variables.
+
+\paragraph{Correctness check.} An encoding error either removes valid grids or lets two values share a group. Both change the number of solutions, so our test suite enumerates every solution of the empty $4\times4$ grid under each encoding (adding a blocking clause over the $N^3$ primary variables after each model) and requires exactly 288, the known number of $4\times4$ Sudoku grids. Every encoding passes. Every board returned during the experiments is also checked against the rules and the clues.
